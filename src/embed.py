@@ -17,6 +17,7 @@ _static_data_folder = Path("../data")
 _move_fpath = _static_data_folder / "move.json"
 _item_fpath = _static_data_folder / "item.json"
 _ability_fpath = _static_data_folder / "ability.json"
+_species_fpath = _static_data_folder / "species.json"
 
 
 NUM_MOVES_PER_POKEMON = 4
@@ -25,12 +26,15 @@ NUM_POKEMON_PER_TEAM = 6
 EMPTY_SPECIES = "empty_species"
 
 GEN8_DATA = GenData.from_gen(_cur_gen)
+## init static DICTS (for one hot vector)
 with open(_move_fpath, "r") as f:
     MOVE_DICT = json.load(f)
 with open(_item_fpath, "r") as f:
     ITEM_DICT = json.load(f)
 with open(_ability_fpath, "r") as f:
     ABILITY_DICT = json.load(f)
+with open(_species_fpath, "r") as f:
+    SPECIES_DICT = json.load(f)
 
 
 def flatten_dict_gen(d, parent_key='', sep='_'):
@@ -167,7 +171,7 @@ class MoveEmbed(AbstractEndEmbed):
 
     def embed_raw_dict(self) -> Dict:
         return {
-            "move_id": -1,
+            "move_id": one_hot_move(self.move),
             "acc": self.move.accuracy,
             "base_power": self.move.base_power,
             "current_pp": self.move.current_pp, # note: this number is not accurate
@@ -268,6 +272,23 @@ class StatusEmbed(AbstractEndEmbed):
         }
 
 
+
+# todo: doesn't use this yet
+_num_species_values = len(SPECIES_DICT)
+def one_hot_pokemon(pok: Pokemon) -> List[int]:
+    ref_dict = SPECIES_DICT
+    if pok.is_empty:
+        value = -1
+    else:
+        assert pok.species in ref_dict, f"Species not found: {pok.species}"
+        value = ref_dict[pok.species]
+
+    arr = [0] * _num_species_values
+    if value >= 0:
+        arr[value] = 1
+    return arr
+    
+
 """ end sequence """
 class PokemonDataEmbed(AbstractEndEmbed):
     def __init__(self, pok: Pokemon):
@@ -277,7 +298,7 @@ class PokemonDataEmbed(AbstractEndEmbed):
 
     def embed_raw_dict(self) -> np.ndarray:
         return {
-            "pok_id": -1,
+            "species_id": one_hot_pokemon(self.pok),
             "is_unknown": int(self.pok.is_empty),
         }
 
