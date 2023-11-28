@@ -1,2 +1,6 @@
 .vscode/
 pokemon-showdown/
+src/replays/
+src/*.txt
+**/.DS_Store
+**/__pycache__/
