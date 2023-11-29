@@ -27,7 +27,7 @@ from poke_env.data import GenData
 
 from . import embed
 
-_input_len = 66
+_input_len = 514
 
 class SimpleRLPlayer(Gen8EnvSinglePlayer):
     def __init__(self, *args, **kwargs):
@@ -39,11 +39,11 @@ class SimpleRLPlayer(Gen8EnvSinglePlayer):
         return self.reward_computing_helper(
             current_battle, 
             fainted_value=2.0, 
-            hp_value=1.0, 
+            hp_value=0.0, 
             number_of_pokemons=0.0,
             starting_value=0.0,
             status_value=0.0,
-            victory_value=30.0,
+            victory_value=25.0,
         )
 
     def embed_battle(self, battle: AbstractBattle) -> ObsType:

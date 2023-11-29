@@ -1,5 +1,5 @@
 import asyncio
-from ou_max_player import MaxDamagePlayer
+from ou_embed_tester import CustomRandomPlayer
 from collections import namedtuple
 from poke_env.ps_client import AccountConfiguration
 
@@ -16,7 +16,7 @@ team_1 = load_team(_team1_fname)
 team_2 = load_team(_team2_fname)
 
 async def test():
-    player = MaxDamagePlayer(
+    player = CustomRandomPlayer(
         account_configuration=AccountConfiguration(username="RZMaxDMG", password=None),
         battle_format="gen8ou", 
         max_concurrent_battles=1,

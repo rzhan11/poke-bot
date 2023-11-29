@@ -1,10 +1,10 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple, Optional
 
 from poke_env.data import GenData
 from poke_env.environment import Battle
-from poke_env.environment import Pokemon
-from poke_env.environment import Status
-from poke_env.environment import Move, EmptyMove
+from poke_env.environment import Pokemon, PokemonType
+from poke_env.environment import Status, Effect
+from poke_env.environment import Move, EmptyMove, MoveCategory
 
 import itertools
 import numpy as np
@@ -22,9 +22,12 @@ _species_fpath = _static_data_folder / "species.json"
 
 _cur_battle, _cur_turn = -1, -1
 NUM_MOVES_PER_POKEMON = 4
-NUM_POKEMON_PER_TEAM = 6
+NUM_POKEMON_PER_TEAM = 2
 
+# constants for empty
 EMPTY_SPECIES = "empty_species"
+BASE_STAT_NAMES = ["atk", "def", "hp", "spa", "spd", "spe"]
+BOOST_NAMES = ["accuracy", "atk", "def", "evasion", "spa", "spd", "spe"]
 
 GEN8_DATA = GenData.from_gen(_cur_gen)
 ## init static DICTS (for one hot vector)
@@ -36,6 +39,37 @@ with open(_ability_fpath, "r") as f:
     ABILITY_DICT = json.load(f)
 with open(_species_fpath, "r") as f:
     SPECIES_DICT = json.load(f)
+
+
+def embed_dumps(z):
+    import json
+    from json import JSONEncoder
+    import re
+
+    # tag lists
+    class MarkedList:
+        _list = None
+        def __init__(self, l):
+            self._list = l
+
+    def mark_lists(d):
+        if type(d) is dict:
+            d = {k: mark_lists(v) for k, v in d.items()}
+        if type(d) is list or type(d) is tuple:
+            d = MarkedList(d)
+        return d
+    
+    z = mark_lists(z)
+
+    class CustomJSONEncoder(JSONEncoder):
+        def default(self, o):
+            if isinstance(o, MarkedList):
+                return "##<{}>##".format(o._list)
+        
+    b = json.dumps(z, indent=2, separators=(',', ':'), cls=CustomJSONEncoder)
+    b = b.replace('"##<', " ").replace('>##"', "")
+    return b
+
 
 
 def flatten_dict_gen(d, parent_key='', sep='_'):
@@ -161,23 +195,59 @@ def one_hot_move(move: Move) -> List[int]:
         arr[value] = 1
     return arr
 
+
+_num_category_values = max(MoveCategory, key=lambda x : x.value).value
+def one_hot_category(cat: MoveCategory) -> List[int]:
+    arr = [0] * _num_category_values
+    if cat is not None:
+        value = cat.value - 1
+        assert value >= 0
+        arr[value] = 1
+    return arr
+
 """ end sequence """
 class MoveEmbed(AbstractEndEmbed):
     def __init__(self, move: Move):
         self.tags = {
             "move_name": move.id,
+            ".boosts": move.boosts,
+            ".category": str(move.category),
+            # ".secondary": move.secondary,
         }
         self.move = move
         # print("current_pp", move.entry)
 
     def embed_raw_dict(self) -> Dict:
+        # encode boosts
+        boosts = {name: 0 for name in BOOST_NAMES}
+        if self.move.boosts is not None:
+            for k, v in self.move.boosts.items():
+                boosts[k] = v
+
         return {
-            # "move_id": one_hot_move(self.move),
-            "acc": self.move.accuracy,
-            "base_power": self.move.base_power,
-            "current_pp": self.move.current_pp, # note: this number is not accurate
-            "priority": self.move.priority,
             "is_unknown": int(self.move.is_empty),
+
+            # "move_id": one_hot_move(self.move),
+            "type": one_hot_type((self.move.type,)),
+            "category": one_hot_category(self.move.category),
+            "defensive_category": one_hot_category(self.move.defensive_category),
+            "current_pp": self.move.current_pp, # note: this number is not accurate
+
+            "accuracy": self.move.accuracy,
+            "base_power": self.move.base_power,
+            "boosts": list(boosts.values()),
+            "priority": self.move.priority,
+            "damage": 0.0 if self.move.damage == "level" else self.move.damage,
+            "damage_use_level": int(self.move.damage == "level"),
+            
+            "drain": self.move.drain,
+            "crit_ratio": self.move.crit_ratio,
+            "force_switch": int(self.move.force_switch),
+            "status": one_hot_status(self.move.status),
+            "is_volatile_status": int(self.move.volatile_status is not None),
+            "heal": self.move.heal,
+
+            # "cure_status": self.move.
         }
     
 def is_no_item(item: str):
@@ -245,35 +315,31 @@ class AbilityEmbed(AbstractEndEmbed):
         }
     
 
-class EmptyStatus():
-    def __init__(self):
-        self.name = "NONE"
-        self.value = -1
-
-_num_status_values = max(Status, key=lambda x : x.value).value + 1
+_num_status_values = max(Status, key=lambda x : x.value).value
 def one_hot_status(status: Status) -> List[int]:
-    value = status.value
     arr = [0] * _num_status_values
-    if value >= 0:
+    if status is not None:
+        value = status.value - 1
+        assert value >= 0
         arr[value] = 1
     return arr
 
 class StatusEmbed(AbstractEndEmbed):
-    def __init__(self, status: Status):
+    def __init__(self, status: Status, status_counter: int):
         self.is_none = status is None
-        if status is None:
-            status = EmptyStatus()
 
         self.tags = {
-            "status_name": status.name,
-            "status_id.idx": status.value,
+            "status_name": status.name if status is not None else "None",
+            "status_id.idx": status.value if status is not None else "None",
         }
         self.status = status
+        self.status_counter = status_counter
 
     def embed_raw_dict(self) -> np.ndarray:
         return {
             "is_none": int(self.is_none),
             "status_id": one_hot_status(self.status),
+            "status_counter": self.status_counter,
         }
 
 
@@ -292,25 +358,64 @@ def one_hot_species(pok: Pokemon) -> List[int]:
     if value >= 0:
         arr[value] = 1
     return arr
-    
+
+def encode_effect(effects):
+    if len(effects) == 0:
+        return [0, 0]
+    else:
+        # return first effect + counter
+        for k, v in effects.items():
+            return [1, v]
+
+_num_type_values = max(PokemonType, key=lambda x : x.value).value
+def one_hot_type(types: Tuple[PokemonType]) -> List[int]:
+    arr = [0] * _num_type_values
+    for pok_type in types:
+        if pok_type is not None:
+            value = pok_type.value - 1
+            assert value >= 0
+            arr[value] = 1
+    return arr
+
 
 """ end sequence """
 class PokemonDataEmbed(AbstractEndEmbed):
     def __init__(self, pok: Pokemon):
         self.tags = {
+            # "base_stats": pok.base_stats,
+            # "boosts": pok.boosts,
+            "all_effects": {str(k.name): v for k, v in pok.effects.items()},
+            "all_types": (str(pok.type_1), str(pok.type_2)),
+            # "all_level": (str(type(pok.level))),
         }
         self.pok = pok
 
     def embed_raw_dict(self) -> np.ndarray:
         return {
-            # "species_id": one_hot_species(self.pok),
+            # meta info
             "is_unknown": int(self.pok.is_empty),
+            "revealed": int(self.pok.revealed),
+            "active": int(self.pok.active),
+
+            # poke-specific info
+            # "species_id": one_hot_species(self.pok),
+            "level": int(self.pok.level),
+            "types": one_hot_type((self.pok.type_1, self.pok.type_2)),
+            "base_stats": list(self.pok.base_stats.values()),
+            "fainted": int(self.pok.fainted),
+            "boosts": list(self.pok.boosts.values()),
+            "cur_hp_fraction": self.pok.current_hp_fraction,
+            # "max_hp": self.pok.max_hp, ### this might be bad to use, since our team has real values, while opp team is scaled 0 to 100
+            "effects": encode_effect(self.pok.effects),
+            "protect_counter": int(self.pok.protect_counter),
+            "is_dyna": int(self.pok.is_dynamaxed),
         }
 
 class MovesetEmbed(AbstractHLEmbed):
     def __init__(self, moveset: List[Move]):
+        # tag all moves
         assert len(moveset) <= NUM_MOVES_PER_POKEMON
-        moveset = moveset + [EmptyMove(move_id="empty")] * (NUM_MOVES_PER_POKEMON - len(moveset))
+        moveset = moveset + [UnknownMove()] * (NUM_MOVES_PER_POKEMON - len(moveset))
 
         self.features = {
             f"move{i}": MoveEmbed(move)
@@ -323,8 +428,8 @@ class PokemonEmbed(AbstractHLEmbed):
     def __init__(self, pok: Pokemon):
         self.features = {
             f"moveset": MovesetEmbed(list(pok.moves.values())),
-            "status": StatusEmbed(pok.status),
-            "ability": AbilityEmbed(pok.ability),
+            "status": StatusEmbed(pok.status, pok.status_counter),
+            # "ability": AbilityEmbed(pok.ability),
             "item": ItemEmbed(pok.item),
         }
         self.in_features = {
@@ -338,7 +443,7 @@ class PokemonEmbed(AbstractHLEmbed):
 class TeamEmbed(AbstractHLEmbed):
     def __init__(self, team: List[Pokemon]):
         if len(team) <= NUM_POKEMON_PER_TEAM:
-            team = team + [EmptyPokemon()] * (NUM_POKEMON_PER_TEAM - len(team))
+            team = team + [UnknownPokemon()] * (NUM_POKEMON_PER_TEAM - len(team))
 
         self.features = {
             f"pok{i}": PokemonEmbed(pok)
@@ -368,19 +473,157 @@ class BattleEmbed(AbstractHLEmbed):
         }
 
 
+            # # meta info
+            # "is_unknown": int(self.pok.is_empty),
+            # "revealed": int(self.pok.revealed),
+            # "active": int(self.pok.active),
 
-class EmptyPokemon(Pokemon):
+            # # poke-specific info
+            # # "species_id": one_hot_species(self.pok),
+            # "level": self.pok.level,
+            # "types": one_hot_type((self.pok.type_1, self.pok.type_2)),
+            # "base_stats": list(self.pok.base_stats.values()),
+            # "fainted": int(self.pok.fainted),
+            # "boosts": list(self.pok.boosts.values()),
+            # "cur_hp_fraction": self.pok.current_hp_fraction,
+            # "effects": encode_effect(self.pok.effects),
+            # "protect_counter": self.pok.protect_counter,
+            # "is_dyna": int(self.pok.is_dynamaxed),
+
+class UnknownPokemon(Pokemon):
     def __init__(self, gen=8):
-
+        # in PokemonEmbed
         self._ability = None
         self._item = GEN8_DATA.UNKNOWN_ITEM
-        self._active = False
-        self._gender = None
-        self._level = None
-        self._current_hp = None
-        self._max_hp = 1 # not 0, to avoid div-by-zero issues
+        self._status = None
         self._moves = dict()
-        self._species = EMPTY_SPECIES
 
+        ## in PokemonDataEmbed
+
+        # meta info
+        self._is_empty = True
+        self._active = False
+        self._revealed = False
+        self._gender = None
+
+        # poke-specific info
+        self._species = EMPTY_SPECIES
+        self._level = 0
+        self._type_1 = None
+        self._type_2 = None
+        self._base_stats = {stat_name: 0.0 for stat_name in BASE_STAT_NAMES}
+        self._fainted = False
+        self._boosts = {stat_name: 0.0 for stat_name in BOOST_NAMES}
+        self._current_hp = None
+        self._max_hp = 100 # not 0, to avoid div-by-zero issues
+        self._effects = {}
+        self._protect_counter = 0
+        self._is_dynamaxed = False
+
+        self._terastallized = False
+        self._terastallized_type = None
+        self._must_recharge = False
+
+
+
+####
+
+    #     self.tags = {
+    #         "move_name": move.id,
+    #         ".boosts": move.boosts,
+    #         ".category": move.category,
+    #     }
+    #     self.move = move
+
+    #     if not move.is_empty and move.boosts is not None:
+    #         print("no boosts")
+    #     # print("current_pp", move.entry)
+
+    # def embed_raw_dict(self) -> Dict:
+    #     # encode boosts
+    #     boosts = self.move.boosts
+    #     if self.move.is_empty or boosts is None:
+    #         boosts = {name: 0 for name in BOOST_NAMES}
+
+    #     return {
+    #         # "move_id": one_hot_move(self.move),
+    #         "accuracy": self.move.accuracy,
+    #         "base_power": self.move.base_power,
+    #         "boosts": list(boosts.values()),
+    #         "category": one_hot_category(self.move.category),
+    #         "defensive_category": one_hot_category(self.move.defensive_category),
+    #         "current_pp": self.move.current_pp, # note: this number is not accurate
+    #         "priority": self.move.priority,
+    #         "is_unknown": int(self.move.is_empty),
+    #     }
+
+class UnknownMove(Move):
+    def __init__(self, gen=8):
+        self._gen = gen
+
+        self._id = "unknown_move"
+
+        self._move_id = "unknown_move"
+        self._current_pp = 0
+        
         self._is_empty = True
 
+    @property
+    def accuracy(self) -> float:
+        return 1.0
+
+    @property
+    def base_power(self) -> int:
+        return 0
+
+    @property
+    def category(self) -> MoveCategory:
+        return None
+
+    @property
+    def crit_ratio(self) -> int:
+        return 0
+
+    @property
+    def damage(self) -> int:
+        return 0
+
+    @property
+    def defensive_category(self) -> MoveCategory:
+        return None
+
+    @property
+    def drain(self) -> float:
+        return 0.0
+
+    @property
+    def force_switch(self) -> bool:
+        return False
+
+    @property
+    def heal(self) -> float:
+        return 0.0
+
+    @property
+    def priority(self) -> int:
+        return 0
+
+    @property
+    def secondary(self) -> List[Dict[str, Any]]:
+        return []
+
+    @property
+    def status(self) -> Status:
+        return None
+
+    @property
+    def type(self) -> PokemonType:
+        return None
+
+    @property
+    def volatile_status(self) -> Optional[str]:
+        return None
+
+    @property
+    def boosts(self) -> Optional[Dict[str, int]]:
+        return {name: 0 for name in BOOST_NAMES}
