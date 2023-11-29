@@ -1,0 +1,18 @@
+Ninetales-Alola @ Leftovers  
+Ability: Snow Warning  
+EVs: 252 SpA / 4 SpD / 252 Spe  
+Timid Nature  
+IVs: 0 Atk  
+- Nasty Plot  
+- Moonblast  
+- Ice Beam  
+- Heal Bell  
+
+Absol @ Life Orb  
+Ability: Pressure  
+EVs: 252 HP / 4 Atk / 252 Spe  
+Jolly Nature  
+- Taunt  
+- Close Combat  
+- Knock Off  
+- Toxic  

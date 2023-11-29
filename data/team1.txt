@@ -1,0 +1,19 @@
+Blissey (F) @ Leftovers  
+Ability: Natural Cure  
+EVs: 252 HP / 252 Def / 4 SpA  
+Bold Nature  
+IVs: 0 Atk  
+- Soft-Boiled  
+- Heal Bell  
+- Seismic Toss  
+- Toxic  
+
+Hippowdon @ Leftovers  
+Ability: Sand Stream  
+EVs: 252 HP / 252 Atk / 4 SpD  
+Adamant Nature  
+- Earthquake  
+- Slack Off  
+- Body Slam  
+- Stone Edge  
+
