@@ -52,53 +52,19 @@ def teampreview_performance(mon_a, mon_b):
     # Our performance metric is the different between the two
     return a_on_b - b_on_a
 
+_team1_fname = "../data/team1.txt"
+_team2_fname = "../data/team2.txt"
+def load_team(fname):
+    # load_bot()
+    with open(fname, "r") as f:
+        return "".join(f.readlines())
 
 async def main():
-    team_1 = """
-Goodra (M) @ Assault Vest
-Ability: Sap Sipper
-EVs: 248 HP / 252 SpA / 8 Spe
-Modest Nature
-IVs: 0 Atk
-- Dragon Pulse
-- Flamethrower
-- Sludge Wave
-- Thunderbolt
-
-Sylveon (M) @ Leftovers
-Ability: Pixilate
-EVs: 248 HP / 244 Def / 16 SpD
-Calm Nature
-IVs: 0 Atk
-- Hyper Voice
-- Mystical Fire
-- Protect
-- Wish
-"""
-    team_2 = """
-Togekiss @ Leftovers
-Ability: Serene Grace
-EVs: 248 HP / 8 SpA / 252 Spe
-Timid Nature
-IVs: 0 Atk
-- Air Slash
-- Nasty Plot
-- Substitute
-- Thunder Wave
-
-Galvantula @ Focus Sash
-Ability: Compound Eyes
-EVs: 252 SpA / 4 SpD / 252 Spe
-Timid Nature
-IVs: 0 Atk
-- Sticky Web
-- Thunder Wave
-- Thunder
-- Energy Ball
-"""
+    team_1 = load_team(_team1_fname)
+    team_2 = load_team(_team2_fname)
 
     # We create two players.
-    opponent = MaxDamagePlayer(
+    opponent = RandomPlayer(
         battle_format="gen8ou", team=team_1, max_concurrent_battles=10
     )
 
