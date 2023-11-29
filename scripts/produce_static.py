@@ -18,28 +18,27 @@ with open(data_folder / f"moves/gen{_gen}moves.json", "r") as f:
     moves = list(moves_obj.keys())
 
 # produce species
-with open(data_folder / f"pokedex/gen{_gen}pokedex.json", "r") as f:
-    pokedex_obj = json.load(f)
-    species = list(pokedex_obj.keys())
+with open("../pokemon-showdown/data/learnsets.ts", "r") as f:
+    lines = f.readlines()
+    all_data = "\n".join(lines)
+    species1 = re.findall(r"^\t(\w+): {$", all_data, re.MULTILINE)
+with open("../pokemon-showdown/data/pokedex.ts", "r") as f:
+    lines = f.readlines()
+    all_data = "\n".join(lines)
+    species2 = re.findall(r"^\t(\w+): {$", all_data, re.MULTILINE)
+species = list(set(species1 + species2))
 
 # produce abilities
 with open("../pokemon-showdown/data/abilities.ts", "r") as f:
     lines = f.readlines()
     all_data = "\n".join(lines)
-    # Regular expression to match the pattern
-    # Find all matches
     abilities = re.findall(r"^\t(\w+): {$", all_data, re.MULTILINE)
-    # for ab in abilities:
-    #     print(ab)
-    # print(len(abilities))
 
 
 # produce items
 with open("../pokemon-showdown/data/items.ts", "r") as f:
     lines = f.readlines()
     all_data = "\n".join(lines)
-    # Regular expression to match the pattern
-    # Find all matches
     items = re.findall(r"^\t(\w+): {$", all_data, re.MULTILINE)
 
         

@@ -1,1 +1,2 @@
-from simple_rl_player import SimpleRLPlayer
+from . import embed
+from . import simple_rl_player

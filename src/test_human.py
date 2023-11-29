@@ -3,6 +3,8 @@ from max_damage_player import MaxDamagePlayer
 from collections import namedtuple
 from poke_env.ps_client import AccountConfiguration
 
+
+
 async def test():
     num_battles = 100
     num_workers = 10

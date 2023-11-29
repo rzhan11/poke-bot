@@ -6,7 +6,9 @@ from typing import List, Dict
 from poke_env.player import Player, RandomPlayer, BattleOrder
 from poke_env.environment import Battle, Move, Pokemon
 
-import embed
+import sys
+sys.path.append("../python")
+from rzlib.env import embed
 
 def get_move_dict(move):
     return {attr: getattr(move, attr) for attr in dir(move) 
@@ -47,21 +49,22 @@ def report_info(battle: Battle):
 
 class MaxDamagePlayer(Player):
     def choose_move(self, battle: Battle) -> BattleOrder:
-        report_info(battle)
+        # report_info(battle)
         emb = embed.BattleEmbed(battle)
         res = emb.embed_dict(with_tags=False)
-        # res = embed.remove_unknown_dicts(res)
+        # # res = embed.remove_unknown_dicts(res)
             
-        with open("test_dict.txt", "w") as f:
-            json.dump(res, f, indent=2)
+        # with open("test_dict.txt", "w") as f:
+        #     json.dump(res, f, indent=2)
             
         with open("test_dict_tag.txt", "w") as f:
             json.dump(emb.embed_dict(with_tags=True), f, indent=2)
 
         arr = list(embed.convert_embed_dict_to_ndarray(res))
-        with open("test_arr.txt", "w") as f:
-            json.dump(list(arr), f, indent=2)
-            print(len(arr))
+        # print(min(arr), max(arr))
+        print(len(arr), type(embed.convert_embed_dict_to_ndarray(res)))
+        # with open("test_arr.txt", "w") as f:
+        #     json.dump(list(arr), f, indent=2)
 
         # If the player can attack, it will
         if battle.available_moves:
@@ -77,8 +80,8 @@ class MaxDamagePlayer(Player):
 async def main():
     start = time.time()
 
-    num_workers = 1
-    num_battles = 100
+    num_workers = 2
+    num_battles = 1000
 
     # We create two players.
     random_player = RandomPlayer(

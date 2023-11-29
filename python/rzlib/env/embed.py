@@ -13,13 +13,14 @@ import json
 
 ## HYPERPARAMS
 _cur_gen = 8
-_static_data_folder = Path("../data")
+_static_data_folder = Path("/Users/richardzhan/cs/15888/poke/data")
 _move_fpath = _static_data_folder / "move.json"
 _item_fpath = _static_data_folder / "item.json"
 _ability_fpath = _static_data_folder / "ability.json"
 _species_fpath = _static_data_folder / "species.json"
 
 
+_cur_battle, _cur_turn = -1, -1
 NUM_MOVES_PER_POKEMON = 4
 NUM_POKEMON_PER_TEAM = 6
 
@@ -50,7 +51,7 @@ def flatten_dict_gen(d, parent_key='', sep='_'):
 def convert_embed_dict_to_ndarray(d: Dict):
     arr = list(flatten_dict_gen(d))
     arr = [np.array(a).ravel() for a in arr]
-    return np.concatenate(arr)
+    return np.concatenate(arr, dtype=np.float32)
 
 
 
@@ -171,19 +172,22 @@ class MoveEmbed(AbstractEndEmbed):
 
     def embed_raw_dict(self) -> Dict:
         return {
-            "move_id": one_hot_move(self.move),
+            # "move_id": one_hot_move(self.move),
             "acc": self.move.accuracy,
             "base_power": self.move.base_power,
             "current_pp": self.move.current_pp, # note: this number is not accurate
             "priority": self.move.priority,
             "is_unknown": int(self.move.is_empty),
         }
+    
+def is_no_item(item: str):
+    return item is None or item == ""
 
 # todo: doesn't use this yet
 _num_item_values = len(ITEM_DICT)
 def one_hot_item(item: str) -> List[int]:
     ref_dict = ITEM_DICT
-    if item == GEN8_DATA.UNKNOWN_ITEM:
+    if item == GEN8_DATA.UNKNOWN_ITEM or is_no_item(item):
         value = -1
     else:
         assert item in ref_dict, f"Item not found: {item}"
@@ -204,8 +208,9 @@ class ItemEmbed(AbstractEndEmbed):
 
     def embed_raw_dict(self) -> Dict:
         return {
-            "item_id": one_hot_item(self.item),
-            "is_unknown": int(self.item == GEN8_DATA.UNKNOWN_ITEM)
+            # "item_id": one_hot_item(self.item),
+            "is_unknown": int(self.item == GEN8_DATA.UNKNOWN_ITEM),
+            "is_none": int(is_no_item(self.item)),
         }
 
 
@@ -235,7 +240,7 @@ class AbilityEmbed(AbstractEndEmbed):
 
     def embed_raw_dict(self) -> np.ndarray:
         return {
-            "ability_id": one_hot_ability(self.ability),
+            # "ability_id": one_hot_ability(self.ability),
             "is_unknown": int(self.ability is None)
         }
     
@@ -275,7 +280,7 @@ class StatusEmbed(AbstractEndEmbed):
 
 # todo: doesn't use this yet
 _num_species_values = len(SPECIES_DICT)
-def one_hot_pokemon(pok: Pokemon) -> List[int]:
+def one_hot_species(pok: Pokemon) -> List[int]:
     ref_dict = SPECIES_DICT
     if pok.is_empty:
         value = -1
@@ -298,7 +303,7 @@ class PokemonDataEmbed(AbstractEndEmbed):
 
     def embed_raw_dict(self) -> np.ndarray:
         return {
-            "species_id": one_hot_pokemon(self.pok),
+            # "species_id": one_hot_species(self.pok),
             "is_unknown": int(self.pok.is_empty),
         }
 
@@ -344,6 +349,10 @@ class TeamEmbed(AbstractHLEmbed):
 
 class BattleEmbed(AbstractHLEmbed):
     def __init__(self, battle: Battle):
+        global _cur_turn, _cur_battle
+        _cur_battle = battle.battle_tag
+        _cur_turn = battle.turn
+
         self.features = {
             "active_pokemon": PokemonEmbed(battle.active_pokemon),
             "opp_active_pokemon": PokemonEmbed(battle.opponent_active_pokemon),
@@ -352,6 +361,7 @@ class BattleEmbed(AbstractHLEmbed):
         }
         self.in_features = {}
         self.tags = {
+            "battle_tag": battle.battle_tag,
             "turn": battle.turn,
             "my_player": battle.player_username,
             "opp_player": battle.opponent_username,
