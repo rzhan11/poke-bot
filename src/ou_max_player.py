@@ -1,12 +1,21 @@
 import asyncio
 
 import numpy as np
+import json
 
 from poke_env.player import Player, RandomPlayer
 
+import sys
+sys.path.append("../python")
+from rzlib.env import embed
 
 class MaxDamagePlayer(Player):
     def choose_move(self, battle):
+        emb = embed.BattleEmbed(battle)
+        res = emb.embed_dict(with_tags=True)
+        print(json.dumps(res, indent=2))
+
+
         # If the player can attack, it will
         if battle.available_moves:
             # Finds the best move among available ones
@@ -73,7 +82,7 @@ async def main():
     )
 
     # Now, let's evaluate our player
-    await max_damage_player.battle_against(opponent, n_battles=100)
+    await max_damage_player.battle_against(opponent, n_battles=1)
 
     print("Max damage player won %d / 100 battles" % max_damage_player.n_won_battles)
 
