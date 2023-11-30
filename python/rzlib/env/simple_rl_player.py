@@ -39,10 +39,10 @@ class SimpleRLPlayer(Gen8EnvSinglePlayer):
         reward = self.reward_computing_helper(
             current_battle, 
             fainted_value=10.0, 
-            hp_value=5.0, 
-            number_of_pokemons=2, # how many pokemon we start with 
-            starting_value=0.0, 
-            status_value=2.5, 
+            # hp_value=5.0, 
+            # number_of_pokemons=2, # how many pokemon we start with 
+            # starting_value=0.0, 
+            # status_value=2.5, 
             victory_value=100.0, 
         )
         return reward
