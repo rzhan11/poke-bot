@@ -26,7 +26,7 @@ async def test():
     )
 
 
-    await player.accept_challenges(None, n_challenges=1, packed_team=None)
+    await player.accept_challenges(None, n_challenges=100, packed_team=None)
 
 
 asyncio.run(test())

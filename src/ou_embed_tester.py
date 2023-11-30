@@ -10,6 +10,8 @@ sys.path.append("/Users/richardzhan/cs/15888/poke/python")
 from rzlib.env import embed
 from rzlib.env.simple_rl_player import SimpleRLPlayer
 
+ref_rl_player = SimpleRLPlayer(None, None)
+
 class CustomRandomPlayer(Player):
     def choose_move(self, battle):
         emb = embed.BattleEmbed(battle)
@@ -19,8 +21,7 @@ class CustomRandomPlayer(Player):
         # print(embed.embed_dumps(res))
         # print(len(res_arr))
 
-        eplayer = SimpleRLPlayer(None, None)
-        reward = eplayer.calc_reward(None, battle)
+        # reward = ref_rl_player.calc_reward(None, battle)
 
         return self.choose_random_move(battle)
 
@@ -36,6 +37,7 @@ def load_team(fname):
 import logging
 
 async def main():
+    print("ou_embed_tester()")
     team_1 = load_team(_team1_fname)
     team_2 = load_team(_team2_fname)
 
