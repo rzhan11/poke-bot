@@ -76,12 +76,12 @@ class MaxDamagePlayer(Player):
         else:
             return self.choose_random_move(battle)
 
-
+import logging
 async def main():
     start = time.time()
 
     num_workers = 2
-    num_battles = 1000
+    num_battles = 1
 
     # We create two players.
     random_player = RandomPlayer(
@@ -91,6 +91,7 @@ async def main():
     )
     max_damage_player = MaxDamagePlayer(
         battle_format="gen8randombattle", 
+        log_level=logging.INFO,
         max_concurrent_battles=num_workers,
         save_replays=True,
     )

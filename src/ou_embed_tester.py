@@ -8,6 +8,7 @@ from poke_env.player import Player, RandomPlayer
 import sys
 sys.path.append("/Users/richardzhan/cs/15888/poke/python")
 from rzlib.env import embed
+from rzlib.env.simple_rl_player import SimpleRLPlayer
 
 class CustomRandomPlayer(Player):
     def choose_move(self, battle):
@@ -15,8 +16,11 @@ class CustomRandomPlayer(Player):
         res = emb.embed_dict(with_tags=True)
         res_no_tag = emb.embed_dict(with_tags=False)
         res_arr = embed.convert_embed_dict_to_ndarray(res_no_tag)
-        print(embed.embed_dumps(res))
-        print(len(res_arr))
+        # print(embed.embed_dumps(res))
+        # print(len(res_arr))
+
+        eplayer = SimpleRLPlayer(None, None)
+        reward = eplayer.calc_reward(None, battle)
 
         return self.choose_random_move(battle)
 
@@ -29,21 +33,28 @@ def load_team(fname):
     with open(fname, "r") as f:
         return "".join(f.readlines())
 
+import logging
+
 async def main():
     team_1 = load_team(_team1_fname)
     team_2 = load_team(_team2_fname)
 
     # We create two players.
     opponent = RandomPlayer(
-        battle_format="gen8ou", team=team_1, max_concurrent_battles=10
+        battle_format="gen8ou", 
+        team=team_1, 
+        max_concurrent_battles=10
     )
 
     my_player = CustomRandomPlayer(
-        battle_format="gen8ou", team=team_2, max_concurrent_battles=10
+        battle_format="gen8ou", 
+        team=team_2, 
+        max_concurrent_battles=10,
+        # log_level=logging.DEBUG,
     )
 
     # Now, let's evaluate our player
-    await my_player.battle_against(opponent, n_battles=100)
+    await my_player.battle_against(opponent, n_battles=1)
 
     print(f"{my_player.username} player won {my_player.n_won_battles} / {my_player.n_finished_battles} battles")
 

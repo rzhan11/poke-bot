@@ -36,15 +36,16 @@ class SimpleRLPlayer(Gen8EnvSinglePlayer):
         self._data: GenData = GenData.from_gen(8)
 
     def calc_reward(self, last_battle, current_battle) -> float:
-        return self.reward_computing_helper(
+        reward = self.reward_computing_helper(
             current_battle, 
-            fainted_value=2.0, 
-            hp_value=0.0, 
-            number_of_pokemons=0.0,
-            starting_value=0.0,
-            status_value=0.0,
-            victory_value=25.0,
+            fainted_value=10.0, 
+            hp_value=5.0, 
+            number_of_pokemons=2, # how many pokemon we start with 
+            starting_value=0.0, 
+            status_value=2.5, 
+            victory_value=100.0, 
         )
+        return reward
 
     def embed_battle(self, battle: AbstractBattle) -> ObsType:
         emb = embed.BattleEmbed(battle)
