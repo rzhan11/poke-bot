@@ -1,6 +1,6 @@
 import numpy as np
-from gym.spaces import Space, Box
-from gym.core import ObsType
+from gymnasium.spaces import Space, Box
+from gymnasium.core import ObsType
 from poke_env.player import Gen8EnvSinglePlayer
 from poke_env.environment import AbstractBattle, Move
 from poke_env.data import GenData
@@ -148,7 +148,7 @@ def do_dqn(train_env, eval_env):
 
 def main():
     """ Validate the gym environment """
-    from gym.utils.env_checker import check_env
+    from gymnasium.utils.env_checker import check_env
     from poke_env.player import RandomPlayer
 
     opponent = RandomPlayer(battle_format="gen8randombattle")

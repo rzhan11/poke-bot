@@ -393,7 +393,7 @@ class PokemonDataEmbed(AbstractEndEmbed):
     def embed_raw_dict(self) -> np.ndarray:
         return {
             # meta info
-            "is_unknown": int(self.pok.is_empty),
+            "is_unknown": isinstance(self.pok, UnknownPokemon),
             "revealed": int(self.pok.revealed),
             "active": int(self.pok.active),
 
@@ -501,7 +501,6 @@ class UnknownPokemon(Pokemon):
         ## in PokemonDataEmbed
 
         # meta info
-        self._is_empty = True
         self._active = False
         self._revealed = False
         self._gender = None

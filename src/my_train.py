@@ -26,76 +26,56 @@ from poke_env.player import (
 )
 from poke_env.data import GenData
 
-from ...python.rzlib.env import embed
+import sys 
+sys.path.append("/Users/richardzhan/cs/15888/poke/python")
 
-_input_len = 11652
+from rzlib.env import embed
+from rzlib.env.simple_rl_player import SimpleRLPlayer
 
-class SimpleRLPlayer(Gen8EnvSinglePlayer):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+_battle_format = "gen8ou"
+_team1_fname = "../data/team1.txt"
+_team2_fname = "../data/team2.txt"
 
-        self._data: GenData = GenData.from_gen(8)
-
-    def calc_reward(self, last_battle, current_battle) -> float:
-        return self.reward_computing_helper(
-            current_battle, fainted_value=10.0, hp_value=1.0, victory_value=100.0
-        )
-
-    def embed_battle(self, battle: AbstractBattle) -> ObsType:
-        emb = embed.BattleEmbed(battle)
-
-        emb_dict = emb.embed_dict()
-        emb_arr = embed.convert_embed_dict_to_ndarray(emb_dict)
-
-        # Final vector with 10 components
-        return emb_arr
-
-    def describe_embedding(self) -> Space:
-        return Box(
-            low=-100,
-            high=1000,
-            shape=(_input_len,),
-            dtype=np.float32,
-        )
+def load_team(fname):
+    # load_bot()
+    with open(fname, "r") as f:
+        return "".join(f.readlines())
 
 def create_random_player():
-    return RandomPlayer(battle_format="gen8randombattle")
+    return RandomPlayer(battle_format=_battle_format, team=load_team(_team1_fname))
 
 def create_max_power_player():
-    return MaxBasePowerPlayer(battle_format="gen8randombattle")
+    return MaxBasePowerPlayer(battle_format=_battle_format, team=load_team(_team1_fname))
+
+def create_rl_player(opponent, **kwargs):
+    return SimpleRLPlayer(
+        battle_format=_battle_format,
+        opponent=opponent,
+        start_challenging=True,
+        team=load_team(_team2_fname),
+        **kwargs
+    )
 
 def create_rl_env_random(sanity_check=True):
     print("create_rl_env_random()...")
     if sanity_check:
         # First test the environment to ensure the class is consistent
         # with the OpenAI API
-        sanity_check_env = SimpleRLPlayer(
-            battle_format="gen8randombattle", 
-            opponent=RandomPlayer(battle_format="gen8randombattle"),
-            start_challenging=True, 
-        )
+        sanity_check_env = create_rl_player(opponent=create_random_player())
         check_env(sanity_check_env)
         sanity_check_env.close()
 
     # Create one environment for training and one for evaluation
-    train_env = SimpleRLPlayer(
-        battle_format="gen8randombattle", 
-        opponent=create_random_player(), 
-        start_challenging=True
-    )
+    train_env = create_rl_player(opponent=create_random_player())
     train_env = wrap_for_old_gym_api(train_env)
 
-    eval_env = SimpleRLPlayer(
-        battle_format="gen8randombattle", 
-        opponent=create_random_player(), # dummy player
-        start_challenging=True
-    )
+    eval_env = create_rl_player(opponent=create_random_player())
     eval_env = wrap_for_old_gym_api(eval_env)
 
     return train_env, eval_env
 
 
-def create_model(train_env, nb_steps=10000):
+def create_model(train_env, memory_limit=10000, anneal_steps=10000):
     print("create_model()...")
     # Compute dimensions
     n_action = train_env.action_space.n
@@ -105,19 +85,20 @@ def create_model(train_env, nb_steps=10000):
     model = Sequential()
     model.add(Dense(128, activation="elu", input_shape=input_shape))
     model.add(Flatten())
-    model.add(Dense(64, activation="elu"))
+    model.add(Dense(128, activation="elu"))
+    model.add(Dense(128, activation="elu"))
     model.add(Dense(n_action, activation="linear"))
 
     # Defining the DQN
-    memory = SequentialMemory(limit=nb_steps, window_length=1)
+    memory = SequentialMemory(limit=memory_limit, window_length=1)
 
     policy = LinearAnnealedPolicy(
         EpsGreedyQPolicy(),
         attr="eps",
         value_max=1.0,
-        value_min=0.05,
+        value_min=0.01,
         value_test=0.0,
-        nb_steps=nb_steps,
+        nb_steps=anneal_steps,
     )
 
     dqn = DQNAgent(
@@ -126,19 +107,19 @@ def create_model(train_env, nb_steps=10000):
         policy=policy,
         memory=memory,
         nb_steps_warmup=1000,
-        gamma=0.5,
+        gamma=0.99,
         target_model_update=100,
         delta_clip=0.01,
         enable_double_dqn=True,
     )
-    dqn.compile(Adam(learning_rate=0.00025), metrics=["mae"])
+    dqn.compile(Adam(learning_rate=0.001), metrics=["mae"])
 
 
     return dqn
 
-def train_model(*, dqn: DQNAgent, train_env):
-    print("train_model()...")
-    dqn.fit(train_env, nb_steps=dqn.policy.nb_steps)
+def train_model(*, dqn: DQNAgent, train_env, num_steps=10000):
+    print("train_model()...", num_steps)
+    dqn.fit(train_env, nb_steps=num_steps)
     train_env.close()
 
 def eval_model(*, agent: DQNAgent, eval_env, opponent: Player, num_eval_episodes=100):
@@ -151,34 +132,34 @@ def eval_model(*, agent: DQNAgent, eval_env, opponent: Player, num_eval_episodes
         f"DQN Evaluation: {eval_env.n_won_battles} victories out of {eval_env.n_finished_battles} episodes"
     )
 
-async def main():
+
+if __name__ == "__main__":
     train_env, eval_env = create_rl_env_random()
 
     # create the model
     dqn = create_model(
         train_env=train_env,
-        nb_steps=50,
+        anneal_steps=10000,
+        memory_limit=100000,
     )
 
     # Training the model
+    # for epoch in range(10):
+    #     print(f"epoch {epoch}...")
+
+    train_env, _ = create_rl_env_random()
     train_model(
         dqn=dqn, 
         train_env=train_env,
+        num_steps=1000000
     )
 
     # Evaluating the model
+    ## recreate eval_env (sometimes breaks if the training takes too long)
+    _, eval_env = create_rl_env_random()
     eval_model(
         agent=dqn,
         eval_env=eval_env,
         opponent=create_random_player(),
         num_eval_episodes=100,
     )
-    eval_model(
-        agent=dqn,
-        eval_env=eval_env,
-        opponent=create_max_power_player(),
-        num_eval_episodes=100,
-    )
-
-if __name__ == "__main__":
-    asyncio.get_event_loop().run_until_complete(main())
