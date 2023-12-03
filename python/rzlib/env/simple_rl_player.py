@@ -31,13 +31,13 @@ def create_worker_account_config(base_name, worker_id):
         password=None,
     )
 
-def create_random_player_fn(**kwargs):
-    def create_random_player(worker_id):
-        return RandomPlayer(
-            account_configuration=create_worker_account_config("Rand", worker_id),
+def create_player_fn(*, player_class, base_name, **kwargs):
+    def create_player(worker_id):
+        return player_class(
+            account_configuration=create_worker_account_config(base_name, worker_id),
             **kwargs
         )
-    return create_random_player
+    return create_player
 
 class SimpleRLPlayer(Gen8EnvSinglePlayer):
     def __init__(self, config_dict):
@@ -66,7 +66,7 @@ class SimpleRLPlayer(Gen8EnvSinglePlayer):
     def calc_reward(self, last_battle, current_battle) -> float:
         reward = self.custom_reward(
             current_battle, 
-            fainted_value=10.0, 
+            fainted_value=5.0,
             # hp_value=5.0, 
             starting_value=0.0, 
             # status_value=2.5, 
@@ -110,10 +110,12 @@ class SimpleRLPlayer(Gen8EnvSinglePlayer):
 
         victory_score = (int(battle.won == True) - int(battle.lost == True)) * victory_value
 
-        if battle.won == True or battle.lost == True:
-            current_value = victory_score
-        else:
-            current_value = my_score - opp_score + victory_score
+        # if battle.won == True or battle.lost == True:
+        #     current_value = victory_score
+        # else:
+        #     current_value = my_score - opp_score + victory_score
+        
+        current_value += victory_score
 
         ## END OF RZ MODS
         to_return = current_value - self._reward_buffer[battle]

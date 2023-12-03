@@ -3,6 +3,8 @@ import asyncio
 import numpy as np
 import json
 import time
+from pathlib import Path
+import os
 
 ## gym imports
 from gymnasium.spaces import Box, Space
@@ -13,6 +15,8 @@ from poke_env.environment.abstract_battle import AbstractBattle
 from poke_env.environment import Move
 from poke_env.player import (
     RandomPlayer,
+    MaxBasePowerPlayer,
+    SimpleHeuristicsPlayer,
 )
 
 ## import RZLib
@@ -21,7 +25,7 @@ sys.path.append("/Users/richardzhan/cs/15888/poke/python")
 
 from rzlib.env.simple_rl_player import (
     SimpleRLPlayer,
-    create_random_player_fn,
+    create_player_fn,
 )
 
 ## ray imports
@@ -48,7 +52,8 @@ from ray.rllib.algorithms.ppo import PPOConfig
 from ray.rllib.algorithms.dqn import DQNConfig
 
 
-_battle_format = "gen8ou"
+# _battle_format = "gen8ou"
+_battle_format = "gen8randombattle"
 _team1_fname = "../data/team1.txt"
 _team2_fname = "../data/team2.txt"
 
@@ -57,11 +62,29 @@ def load_team(fname):
     with open(fname, "r") as f:
         return "".join(f.readlines())
 
+def get_checkpoint_folder_version(folder_name):
+    i = 0
+    while True:
+        path = Path(f"{folder_name}_{i}")
+        if path.exists():
+            i += 1
+        else:
+            break
+    return path
+
+_num_iters = 1000
+_checkpoint_freq = 10
+_checkpoint_base_folder_name = "../results/ppo"
+_checkpoint_folder = get_checkpoint_folder_version(_checkpoint_base_folder_name)
+
+# num_eval_workers: https://discuss.ray.io/t/num-gpu-rollout-workers-learner-workers-evaluation-workers-purpose-resource-allocation/10159
+
 _num_rollout_workers = 16
-_num_eval_workers = 0
+_num_eval_workers = 0 ## This is probably not useful... (i think? see above link)
 _num_envs_per_worker = 2
 _num_workers = _num_rollout_workers + _num_eval_workers
-algo = (
+
+ppo_config = (
     PPOConfig()
     .framework("torch")
     .training(
@@ -86,22 +109,47 @@ algo = (
         "base_config": {
             "battle_format": _battle_format,
             "start_challenging": True,
-            "team": load_team(_team2_fname), # my team
+            # "team": load_team(_team2_fname), # my team
         },
         "ray_config": {
-            "opponent_fn": create_random_player_fn(battle_format=_battle_format, team=load_team(_team1_fname)),
+            "opponent_fn": create_player_fn(
+                player_class=MaxBasePowerPlayer,
+                base_name="Max",
+                battle_format=_battle_format, 
+                # team=load_team(_team1_fname),
+            ),
             "base_name": "PPO",
         },
         "custom_config": {
             "input_len": 514,
         },
     })
-    .build(use_copy=False)
+    .fault_tolerance(
+        recreate_failed_workers=True,
+        max_num_worker_restarts=100,
+        delay_between_worker_restarts_s=10,
+        num_consecutive_worker_failures_tolerance=3,
+    )
 )
 
+# # Adding failure handling configuration
+# failure_handling_config = {
+#     "failure_config": {
+#         "ignore_worker_failures": True,
+#     }
+# }
+
+# # Merge the failure handling config with your existing PPO configuration
+# from ray.rllib.utils import merge_dicts
+# ppo_config = merge_dicts(ppo_config, failure_handling_config)
+
+algo = ppo_config.build()
+
 orig_start_time = time.time()
-for i in range(100):
-    print("\n\nIter", i)
+print(f"Checkpoint folder {_checkpoint_folder}")
+_checkpoint_folder.mkdir(parents=True, exist_ok=True)
+for cur_iter in range(_num_iters):
+    print("\n\nIter", cur_iter)
 
     train_start_time = time.time()
     train_res = algo.train()
@@ -118,6 +166,12 @@ for i in range(100):
     }, indent=2))
     print(f"Train time: {(time.time() - train_start_time):.0f} s")
 
+    # checkpoint the algo (every X intervals + on the last iteration)
+    if cur_iter % _checkpoint_freq == 0 or cur_iter == _num_iters - 1:
+        save_folder = _checkpoint_folder / f"iter_{cur_iter:05d}/"
+        # print(f"Checkpointing to {save_path}")
+        save_res = algo.save(checkpoint_dir=save_folder)
+        print("Saved", save_res.checkpoint.path)
     # assert False
 
     # eval_start_time = time.time()
