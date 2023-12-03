@@ -13,7 +13,7 @@ import json
 
 ## HYPERPARAMS
 _cur_gen = 8
-_static_data_folder = Path("/Users/richardzhan/cs/15888/poke/data")
+_static_data_folder = Path(__file__).parent / "../../../data/"
 _move_fpath = _static_data_folder / "move.json"
 _item_fpath = _static_data_folder / "item.json"
 _ability_fpath = _static_data_folder / "ability.json"

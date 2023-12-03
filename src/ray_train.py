@@ -72,10 +72,8 @@ def get_checkpoint_folder_version(folder_name):
             break
     return path
 
-_num_iters = 1000
-_checkpoint_freq = 10
-_checkpoint_base_folder_name = "../results/ppo"
-_checkpoint_folder = get_checkpoint_folder_version(_checkpoint_base_folder_name)
+def create_save_folder(base, cur_iter):
+    return base / f"iter_{cur_iter:05d}/"
 
 # num_eval_workers: https://discuss.ray.io/t/num-gpu-rollout-workers-learner-workers-evaluation-workers-purpose-resource-allocation/10159
 
@@ -132,23 +130,39 @@ ppo_config = (
     )
 )
 
-# # Adding failure handling configuration
-# failure_handling_config = {
-#     "failure_config": {
-#         "ignore_worker_failures": True,
-#     }
-# }
+_num_iters = 1000
+_checkpoint_freq = 10
+_checkpoint_base_folder_name = "../results/ppo"
+_checkpoint_folder = get_checkpoint_folder_version(_checkpoint_base_folder_name)
 
-# # Merge the failure handling config with your existing PPO configuration
-# from ray.rllib.utils import merge_dicts
-# ppo_config = merge_dicts(ppo_config, failure_handling_config)
+_use_checkpoint = "../results/ppo_1/"
+# _use_checkpoint = None
+_checkpoint_iter = 150
 
-algo = ppo_config.build()
+if _use_checkpoint is not None: ## Load from a checkpoint
+    from ray.rllib.algorithms.algorithm import Algorithm
+
+    assert type(_use_checkpoint) is str, f"_use_checkpoint should be a str, received {type(_use_checkpoint)}"
+    _checkpoint_folder = Path(_use_checkpoint)
+    algo = Algorithm.from_checkpoint(
+        create_save_folder(
+            base=_checkpoint_folder, 
+            cur_iter=_checkpoint_iter,
+        )
+    )
+
+    print("Using checkpoint", _use_checkpoint)
+    start_iter = _checkpoint_iter + 1
+else:
+    algo = ppo_config.build()
+    start_iter = 0
+
+
 
 orig_start_time = time.time()
-print(f"Checkpoint folder {_checkpoint_folder}")
 _checkpoint_folder.mkdir(parents=True, exist_ok=True)
-for cur_iter in range(_num_iters):
+print(f"Checkpoint folder {_checkpoint_folder}")
+for cur_iter in range(start_iter, _num_iters):
     print("\n\nIter", cur_iter)
 
     train_start_time = time.time()
@@ -168,7 +182,7 @@ for cur_iter in range(_num_iters):
 
     # checkpoint the algo (every X intervals + on the last iteration)
     if cur_iter % _checkpoint_freq == 0 or cur_iter == _num_iters - 1:
-        save_folder = _checkpoint_folder / f"iter_{cur_iter:05d}/"
+        save_folder = create_save_folder(_checkpoint_folder, cur_iter)
         # print(f"Checkpointing to {save_path}")
         save_res = algo.save(checkpoint_dir=save_folder)
         print("Saved", save_res.checkpoint.path)
