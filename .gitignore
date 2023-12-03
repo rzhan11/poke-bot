@@ -1,5 +1,6 @@
 .vscode/
 pokemon-showdown/
+poke-env/
 src/replays/
 src/*.txt
 **/.DS_Store
