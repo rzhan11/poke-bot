@@ -151,9 +151,9 @@ _checkpoint_freq = 10
 _checkpoint_base_folder_name = "../results/ppo"
 _checkpoint_folder = get_checkpoint_folder_version(_checkpoint_base_folder_name)
 
-# _use_checkpoint = "../results/ppo_1/"
-_use_checkpoint = None
-_checkpoint_iter = 350
+_use_checkpoint = "../results/ppo_1/"
+# _use_checkpoint = None
+_checkpoint_iter = 2230
 
 if _use_checkpoint is not None: ## Load from a checkpoint
     from ray.rllib.algorithms.algorithm import Algorithm
