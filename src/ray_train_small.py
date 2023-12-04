@@ -30,8 +30,8 @@ from rzlib.env.simple_rl_player import (
 
 ## ray imports
 import ray
-_num_cpus = 64
-_num_gpus = 4
+_num_cpus = 1
+_num_gpus = 1
 ray.init(
     # local_mode=True,
     num_cpus=_num_cpus,
@@ -50,10 +50,11 @@ register_env(select_env, lambda config: SimpleRLPlayer(config))
 ## create PPO algo
 from ray.rllib.algorithms.ppo import PPOConfig
 from ray.rllib.algorithms.dqn import DQNConfig
+from ray.rllib.algorithms.callbacks import DefaultCallbacks
 
 
-# _battle_format = "gen8ou"
-_battle_format = "gen8randombattle"
+_battle_format = "gen8ou"
+# _battle_format = "gen8randombattle"
 _team1_fname = "../data/team1.txt"
 _team2_fname = "../data/team2.txt"
 
@@ -75,10 +76,89 @@ def get_checkpoint_folder_version(folder_name):
 def create_save_folder(base, cur_iter):
     return base / f"iter_{cur_iter:05d}/"
 
+class MyCallbacks(DefaultCallbacks):
+    def on_episode_start(
+        self,
+        *,
+        worker,
+        base_env,
+        policies,
+        episode,
+        env_index: int,
+        **kwargs,
+    ):
+        # Make sure this episode has just been started (only initial obs
+        # logged so far).
+        print("on_episode_start", type(episode), episode.length)
+        
+        vec_env = base_env.vector_env
+        print("base_env", vec_env.num_envs, len(vec_env.envs))
+
+        assert vec_env.num_envs == 1, f"Currently only supports single-env workers, tried to use {vec_env.num_envs}"
+        
+        cur_env = vec_env.envs[0]
+        print("n_won", type(cur_env), cur_env.n_won_battles, cur_env.n_finished_battles)
+        # assert episode.length == 0, (
+        #     "ERROR: `on_episode_start()` callback should be called right "
+        #     "after env reset!"
+        # )
+
+        episode.user_data["n_won_battles"] = cur_env.n_won_battles
+        episode.user_data["n_finished_battles"] = cur_env.n_finished_battles
+
+    def on_episode_end(self, *, worker, base_env, policies, episode, env_index, **kwargs):
+        print("on_episode_end")
+        cur_env = base_env.vector_env.envs[0]
+
+        assert episode.user_data["n_finished_battles"] + 1 == cur_env.n_finished_battles
+        won_battle = cur_env.n_won_battles - episode.user_data["n_won_battles"]
+        assert 0 <= won_battle <= 1, f"won_battle is not 0/1, received {won_battle}"
+        
+        print("won_battle", won_battle, "n_fin", episode.user_data["n_won_battles"], episode.user_data["n_finished_battles"])
+        episode.custom_metrics["won_battle"] = won_battle
+
+    def on_sample_end(self, *, worker, samples, **kwargs):
+        print(f"on_sample_end, {len(samples)}")
+
+    def on_train_result(self, *, algorithm, result, **kwargs):
+        result["custom_metrics"]["winrate"] = np.mean(result["custom_metrics"]["won_battle"])
+        result["custom_metrics"]["n_won_battles"] = np.sum(result["custom_metrics"]["won_battle"]).astype(float)
+        result["custom_metrics"]["n_finished_battles"] = len(result["custom_metrics"]["won_battle"])
+
+        del result["custom_metrics"]["won_battle"]
+
+
+# def custom_evaluation_function(algo, eval_workers):
+#     from ray.rllib.evaluation.metrics import collect_episodes, summarize_episodes
+#     # eval_workers.foreach_worker(
+#     #     func = lambda w: w.foreach_env(
+#     #         lambda env: 
+#     #     )
+#     # )
+
+#     for i in range(5):
+
+#         def foreach_fn(w):
+#             w.sample()
+#             return f"i: {i}, {type(w)}"
+#         print("Custom evaluation round", i)
+#         res = eval_workers.foreach_worker(func=lambda w: w.sample(), local_worker=False)
+#         print(res)
+
+#     episodes = collect_episodes(workers=eval_workers, timeout_seconds=99999)
+#     # You can compute metrics from the episodes manually, or use the
+#     # convenient `summarize_episodes()` utility:
+#     metrics = summarize_episodes(episodes)
+
+#     # You can also put custom values in the metrics dict.
+#     metrics["foo"] = 1
+#     return metrics
+
+
 # num_eval_workers: https://discuss.ray.io/t/num-gpu-rollout-workers-learner-workers-evaluation-workers-purpose-resource-allocation/10159
 
-_num_rollout_workers = int(1 * _num_cpus)
 _num_eval_workers = 0 ## This is probably not useful... (i think? see above link)
+_num_rollout_workers = int(1 * (_num_cpus - _num_eval_workers))
 _num_envs_per_worker = 1
 _num_workers = _num_rollout_workers + _num_eval_workers
 
@@ -87,18 +167,17 @@ ppo_config = (
     .framework("torch")
     .training(
         model={
-            "fcnet_hiddens": [512, 256, 128, 128],
-            "use_lstm": True,
-            "lstm_cell_size": 64,
+            "fcnet_hiddens": [128, 128],
+            # "use_lstm": True,
+            # "lstm_cell_size": 64,
         },
-        train_batch_size=10*1024,
-        sgd_minibatch_size=2048,
+        train_batch_size=1*512,
+        sgd_minibatch_size=512,
         gamma=0.99,
         lr=0.001,
         use_critic=True,
         use_gae=True,
         shuffle_sequences=True,
-
         # kl_coeff=0.3,
         # target_network_update_freq=500,
         # gamma=0.99,
@@ -111,12 +190,22 @@ ppo_config = (
         num_rollout_workers=_num_rollout_workers,
         num_envs_per_worker=_num_envs_per_worker,
     )
-    .evaluation(evaluation_num_workers=_num_eval_workers)
+    .evaluation(
+        # evaluation_num_workers=_num_eval_workers,
+        # evaluation_interval=1,
+        # evaluation_parallel_to_training=True,
+        # evaluation_duration="auto",
+        # custom_evaluation_function=custom_evaluation_function,
+    )
+    .callbacks(
+        MyCallbacks
+    )
+    .reporting(
+        keep_per_episode_custom_metrics=True,
+    )
     .resources(
         num_cpus_per_worker=_num_cpus / _num_workers, 
         num_gpus_per_worker=_num_gpus / _num_workers,
-        # num_cpus=_num_cpus,
-        # num_gpus=_num_gpus,
     )
     .environment(env=select_env, env_config={
         "base_config": {
@@ -127,8 +216,8 @@ ppo_config = (
         },
         "ray_config": {
             "opponent_fn": create_player_fn(
-                player_class=MaxBasePowerPlayer,
-                base_name="Max",
+                player_class=RandomPlayer,
+                base_name="Rand",
                 battle_format=_battle_format, 
                 team=load_team(_team1_fname),
             ),
@@ -148,7 +237,7 @@ ppo_config = (
 
 _num_iters = 10000
 _checkpoint_freq = 10
-_checkpoint_base_folder_name = "../results/ppo"
+_checkpoint_base_folder_name = "../results/ppo_toy"
 _checkpoint_folder = get_checkpoint_folder_version(_checkpoint_base_folder_name)
 
 # _use_checkpoint = "../results/ppo_1/"
@@ -191,13 +280,19 @@ for cur_iter in range(start_iter, _num_iters):
     print("train", json.dumps({
         "training_iteration": train_res["training_iteration"],
         "episode_reward_mean": train_res["sampler_results"]["episode_reward_mean"],
+
+        "num_env_steps_sampled_this_iter": train_res["num_env_steps_sampled_this_iter"],
         "episodes_this_iter": train_res["sampler_results"]["episodes_this_iter"],
-        "episodes_total": train_res["episodes_total"],
+        
         "timesteps_total": train_res["timesteps_total"],
+        "episodes_total": train_res["episodes_total"],
+        
         "counters": train_res["counters"],
+        
         "timers": train_res["timers"],
         "time_this_iter_s": train_res["time_this_iter_s"],
         "time_total_s": train_res["time_total_s"],
+        "custom_metrics": train_res["custom_metrics"],
     }, indent=2, default=lambda x: f"<convert {type(x)}>: {str(x)}"))
     print(f"Train time: {(time.time() - train_start_time):.0f} s")
 
@@ -207,7 +302,10 @@ for cur_iter in range(start_iter, _num_iters):
         # print(f"Checkpointing to {save_path}")
         save_res = algo.save(checkpoint_dir=save_folder)
         print("Saved", save_res.checkpoint.path)
-    # assert False
+        
+        # save train_metrics also
+        with open(save_folder / "train_res.json", "w") as f:
+            json.dump(train_res, f, indent=2, default=lambda x: f"<convert {type(x)}>: {str(x)}")
 
     # eval_start_time = time.time()
     # eval_res = algo.evaluate()
