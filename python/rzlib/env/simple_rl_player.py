@@ -5,6 +5,8 @@ from poke_env.environment.abstract_battle import AbstractBattle
 from poke_env.player import (
     Gen8EnvSinglePlayer,
     RandomPlayer,
+    MaxBasePowerPlayer,
+    SimpleHeuristicsPlayer,
 )
 
 from poke_env.ps_client.account_configuration import (
@@ -38,6 +40,31 @@ def create_player_fn(*, player_class, base_name, **kwargs):
             **kwargs
         )
     return create_player
+
+# helper methods
+def create_random_bot_fn(battle_format, team):
+    return create_player_fn(
+        player_class=RandomPlayer,
+        base_name="Rand",
+        battle_format=battle_format, 
+        team=team,
+    )
+
+def create_max_bot_fn(battle_format, team):
+    return create_player_fn(
+        player_class=MaxBasePowerPlayer,
+        base_name="Max",
+        battle_format=battle_format, 
+        team=team,
+    )
+
+def create_heur_bot_fn(battle_format, team):
+    return create_player_fn(
+        player_class=SimpleHeuristicsPlayer,
+        base_name="Heur",
+        battle_format=battle_format, 
+        team=team,
+    )
 
 class SimpleRLPlayer(Gen8EnvSinglePlayer):
     def __init__(self, config_dict):

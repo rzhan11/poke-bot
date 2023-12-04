@@ -26,12 +26,15 @@ sys.path.append("/Users/richardzhan/cs/15888/poke/python")
 from rzlib.env.simple_rl_player import (
     SimpleRLPlayer,
     create_player_fn,
+    create_random_bot_fn,
+    create_max_bot_fn,
+    create_heur_bot_fn,
 )
 
 ## ray imports
 import ray
-_num_cpus = 1
-_num_gpus = 1
+_num_cpus = 4
+_num_gpus = 0
 ray.init(
     # local_mode=True,
     num_cpus=_num_cpus,
@@ -51,6 +54,8 @@ register_env(select_env, lambda config: SimpleRLPlayer(config))
 from ray.rllib.algorithms.ppo import PPOConfig
 from ray.rllib.algorithms.dqn import DQNConfig
 from ray.rllib.algorithms.callbacks import DefaultCallbacks
+from ray.rllib.env.vector_env import VectorEnv, VectorEnvWrapper
+from ray.rllib.evaluation import Episode, RolloutWorker
 
 
 _battle_format = "gen8ou"
@@ -80,24 +85,24 @@ class MyCallbacks(DefaultCallbacks):
     def on_episode_start(
         self,
         *,
-        worker,
-        base_env,
+        worker: RolloutWorker,
+        base_env: VectorEnvWrapper,
         policies,
-        episode,
+        episode: Episode,
         env_index: int,
         **kwargs,
     ):
         # Make sure this episode has just been started (only initial obs
         # logged so far).
-        print("on_episode_start", type(episode), episode.length)
+        # print("on_episode_start", type(episode), episode.length)
         
         vec_env = base_env.vector_env
-        print("base_env", vec_env.num_envs, len(vec_env.envs))
+        # print("base_env", vec_env.num_envs, len(vec_env.envs))
 
         assert vec_env.num_envs == 1, f"Currently only supports single-env workers, tried to use {vec_env.num_envs}"
         
         cur_env = vec_env.envs[0]
-        print("n_won", type(cur_env), cur_env.n_won_battles, cur_env.n_finished_battles)
+        # print("n_won", type(cur_env), cur_env.n_won_battles, cur_env.n_finished_battles)
         # assert episode.length == 0, (
         #     "ERROR: `on_episode_start()` callback should be called right "
         #     "after env reset!"
@@ -106,21 +111,31 @@ class MyCallbacks(DefaultCallbacks):
         episode.user_data["n_won_battles"] = cur_env.n_won_battles
         episode.user_data["n_finished_battles"] = cur_env.n_finished_battles
 
-    def on_episode_end(self, *, worker, base_env, policies, episode, env_index, **kwargs):
-        print("on_episode_end")
+    def on_episode_end(
+            self, 
+            *, 
+            worker: RolloutWorker, 
+            base_env: VectorEnvWrapper, 
+            policies, 
+            episode: Episode, 
+            env_index: int, 
+            **kwargs
+        ):
+        # print("on_episode_end")
         cur_env = base_env.vector_env.envs[0]
 
         assert episode.user_data["n_finished_battles"] + 1 == cur_env.n_finished_battles
         won_battle = cur_env.n_won_battles - episode.user_data["n_won_battles"]
         assert 0 <= won_battle <= 1, f"won_battle is not 0/1, received {won_battle}"
         
-        print("won_battle", won_battle, "n_fin", episode.user_data["n_won_battles"], episode.user_data["n_finished_battles"])
+        # print("won_battle", won_battle, "n_fin", episode.user_data["n_won_battles"], episode.user_data["n_finished_battles"])
         episode.custom_metrics["won_battle"] = won_battle
+        # episode.custom_metrics["episode_id"] = episode.episode_id
 
     def on_sample_end(self, *, worker, samples, **kwargs):
         print(f"on_sample_end, {len(samples)}")
 
-    def on_train_result(self, *, algorithm, result, **kwargs):
+    def on_train_result(self, *, algorithm, result: dict, **kwargs):
         result["custom_metrics"]["winrate"] = np.mean(result["custom_metrics"]["won_battle"])
         result["custom_metrics"]["n_won_battles"] = np.sum(result["custom_metrics"]["won_battle"]).astype(float)
         result["custom_metrics"]["n_finished_battles"] = len(result["custom_metrics"]["won_battle"])
@@ -171,8 +186,8 @@ ppo_config = (
             # "use_lstm": True,
             # "lstm_cell_size": 64,
         },
-        train_batch_size=1*512,
-        sgd_minibatch_size=512,
+        train_batch_size=2048,
+        sgd_minibatch_size=2048,
         gamma=0.99,
         lr=0.001,
         use_critic=True,
@@ -202,6 +217,7 @@ ppo_config = (
     )
     .reporting(
         keep_per_episode_custom_metrics=True,
+        metrics_num_episodes_for_smoothing=100,
     )
     .resources(
         num_cpus_per_worker=_num_cpus / _num_workers, 
@@ -215,9 +231,7 @@ ppo_config = (
             "team": load_team(_team2_fname), # my team
         },
         "ray_config": {
-            "opponent_fn": create_player_fn(
-                player_class=RandomPlayer,
-                base_name="Rand",
+            "opponent_fn": create_heur_bot_fn(
                 battle_format=_battle_format, 
                 team=load_team(_team1_fname),
             ),
