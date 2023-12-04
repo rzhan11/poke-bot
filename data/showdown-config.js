@@ -30,7 +30,7 @@ exports.bindaddress = '0.0.0.0';
  *   this means or you are unfamiliar with PS' networking code, leave this set
  *   to 1.
  */
-exports.workers = 4;
+exports.workers = 8; // RZ Mod
 
 /**
  * wsdeflate - compresses WebSocket messages
@@ -407,8 +407,8 @@ exports.loguserstats = 1000 * 60 * 10; // 10 minutes
  * You should leave both of these at 1 unless your server has a very large
  * amount of traffic (i.e. hundreds of concurrent battles).
  */
-exports.validatorprocesses = 1;
-exports.simulatorprocesses = 1;
+exports.validatorprocesses = 2;
+exports.simulatorprocesses = 16; // RZ MOD
 
 /**
  * inactiveuserthreshold - how long a user must be inactive before being pruned

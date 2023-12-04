@@ -1,0 +1,1 @@
+cp ../data/showdown-config.js ../pokemon-showdown/config/config.js

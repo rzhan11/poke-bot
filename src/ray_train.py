@@ -30,15 +30,15 @@ from rzlib.env.simple_rl_player import (
 
 ## ray imports
 import ray
-_num_cpus = 8
-_num_gpus = 0
+_num_cpus = 64
+_num_gpus = 4
 ray.init(
     # local_mode=True,
     num_cpus=_num_cpus,
     num_gpus=_num_gpus,
     include_dashboard=True,
     dashboard_host="127.0.0.1",
-    dashboard_port=8700,
+    dashboard_port=6100,
     ignore_reinit_error=True,
 )
 
@@ -77,16 +77,25 @@ def create_save_folder(base, cur_iter):
 
 # num_eval_workers: https://discuss.ray.io/t/num-gpu-rollout-workers-learner-workers-evaluation-workers-purpose-resource-allocation/10159
 
-_num_rollout_workers = 16
+_num_rollout_workers = int(1 * _num_cpus)
 _num_eval_workers = 0 ## This is probably not useful... (i think? see above link)
-_num_envs_per_worker = 2
+_num_envs_per_worker = 1
 _num_workers = _num_rollout_workers + _num_eval_workers
 
 ppo_config = (
     PPOConfig()
     .framework("torch")
     .training(
-        model={"fcnet_hiddens": [128, 128, 128]},
+        model={"fcnet_hiddens": [1024, 1024, 1024]},
+        train_batch_size=10*1024,
+        sgd_minibatch_size=2048,
+        gamma=0.99,
+        lr=0.001,
+        use_critic=True,
+        use_gae=True,
+        shuffle_sequences=True,
+
+        # kl_coeff=0.3,
         # target_network_update_freq=500,
         # gamma=0.99,
         # lr=0.001,
@@ -102,6 +111,8 @@ ppo_config = (
     .resources(
         num_cpus_per_worker=_num_cpus / _num_workers, 
         num_gpus_per_worker=_num_gpus / _num_workers,
+        # num_cpus=_num_cpus,
+        # num_gpus=_num_gpus,
     )
     .environment(env=select_env, env_config={
         "base_config": {
@@ -130,13 +141,13 @@ ppo_config = (
     )
 )
 
-_num_iters = 1000
+_num_iters = 10000
 _checkpoint_freq = 10
 _checkpoint_base_folder_name = "../results/ppo"
 _checkpoint_folder = get_checkpoint_folder_version(_checkpoint_base_folder_name)
 
-_use_checkpoint = "../results/ppo_1/"
-# _use_checkpoint = None
+# _use_checkpoint = "../results/ppo_1/"
+_use_checkpoint = None
 _checkpoint_iter = 350
 
 if _use_checkpoint is not None: ## Load from a checkpoint
@@ -157,6 +168,11 @@ else:
     algo = ppo_config.build()
     start_iter = 0
 
+print(json.dumps({
+    "_num_cpus": _num_cpus,
+    "_num_gpus": _num_gpus,
+    "_num_rollout_workers": _num_rollout_workers,
+}, indent=2))
 
 
 orig_start_time = time.time()
