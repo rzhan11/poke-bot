@@ -1,0 +1,16 @@
+{
+  "earthquake": 0,
+  "knockoff": 1,
+  "bodyslam": 2,
+  "healbell": 3,
+  "nastyplot": 4,
+  "closecombat": 5,
+  "stoneedge": 6,
+  "seismictoss": 7,
+  "toxic": 8,
+  "taunt": 9,
+  "moonblast": 10,
+  "icebeam": 11,
+  "slackoff": 12,
+  "softboiled": 13
+}

@@ -68,32 +68,14 @@ def create_heur_bot_fn(battle_format, team):
 
 
 
-class SimpleRLPlayer(Gen8EnvSinglePlayer):
-    def __init__(self, config_dict):
-        if config_dict is None:
-            return
+class OldRLPlayer(Gen8EnvSinglePlayer):
+    def __init__(self, *, input_len, **kwargs):
+        self._init(input_len)
+        super().__init__(**kwargs)
 
-        base_config = config_dict["base_config"]
-        custom_config = config_dict["custom_config"]
-        ray_config = config_dict["ray_config"]
-
-        self._init(**custom_config)
-        self._init_ray(**ray_config, base_config=base_config)
-        super().__init__(**base_config)
-
-    def _init_ray(self, *, opponent_fn, base_name, base_config):
-        # get worker id
-        worker_id = worker_id_fn()
-
-        ## update opponent
-        base_config["opponent"] = opponent_fn(worker_id) if callable(opponent_fn) else opponent_fn 
-
-        # we may pass in a function that returns the account (since the username may be worker-specific)
-        base_config["account_configuration"] = create_worker_account_config(base_name, worker_id)
 
     def _init(self, input_len):
         self._input_len = input_len
-
 
     def calc_reward(self, last_battle, current_battle) -> float:
         reward = self.custom_reward(

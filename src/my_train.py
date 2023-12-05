@@ -30,11 +30,12 @@ import sys
 sys.path.append("/Users/richardzhan/cs/15888/poke/python")
 
 from rzlib.env import embed
-from rzlib.env.simple_rl_player import SimpleRLPlayer
+from rzlib.env.old_rl_player import OldRLPlayer
 
 _battle_format = "gen8ou"
-_team1_fname = "../data/team1.txt"
-_team2_fname = "../data/team2.txt"
+_team1_fname = "../data/small_teams/team1.txt"
+_team2_fname = "../data/small_teams/team2.txt"
+_input_len = 380
 
 def load_team(fname):
     # load_bot()
@@ -47,8 +48,9 @@ def create_random_player():
 def create_max_power_player():
     return MaxBasePowerPlayer(battle_format=_battle_format, team=load_team(_team1_fname))
 
-def create_rl_player(opponent, **kwargs):
-    return SimpleRLPlayer(
+def create_rl_player(*, opponent, **kwargs):
+    return OldRLPlayer(
+        input_len=_input_len,
         battle_format=_battle_format,
         opponent=opponent,
         start_challenging=True,
@@ -83,10 +85,9 @@ def create_model(train_env, memory_limit=10000, anneal_steps=10000):
 
     # Create model
     model = Sequential()
-    model.add(Dense(128, activation="elu", input_shape=input_shape))
+    model.add(Dense(128, activation="relu", input_shape=input_shape))
     model.add(Flatten())
-    model.add(Dense(128, activation="elu"))
-    model.add(Dense(128, activation="elu"))
+    model.add(Dense(128, activation="relu"))
     model.add(Dense(n_action, activation="linear"))
 
     # Defining the DQN
@@ -108,8 +109,11 @@ def create_model(train_env, memory_limit=10000, anneal_steps=10000):
         memory=memory,
         nb_steps_warmup=1000,
         gamma=0.99,
-        target_model_update=100,
-        delta_clip=0.01,
+
+        batch_size=1000,
+        train_interval=1000,
+        target_model_update=1000,
+        # delta_clip=0.01,
         enable_double_dqn=True,
     )
     dqn.compile(Adam(learning_rate=0.001), metrics=["mae"])
@@ -120,7 +124,7 @@ def create_model(train_env, memory_limit=10000, anneal_steps=10000):
 def train_model(*, dqn: DQNAgent, train_env, num_steps=10000):
     print("train_model()...", num_steps)
     dqn.fit(train_env, nb_steps=num_steps)
-    train_env.close()
+    # train_env.close()
 
 def eval_model(*, agent: DQNAgent, eval_env, opponent: Player, num_eval_episodes=100):
     print("eval_model()...")
@@ -132,8 +136,10 @@ def eval_model(*, agent: DQNAgent, eval_env, opponent: Player, num_eval_episodes
         f"DQN Evaluation: {eval_env.n_won_battles} victories out of {eval_env.n_finished_battles} episodes"
     )
 
-
+import time
 if __name__ == "__main__":
+    start_time = time.time()
+
     train_env, eval_env = create_rl_env_random()
 
     # create the model
@@ -144,22 +150,24 @@ if __name__ == "__main__":
     )
 
     # Training the model
-    # for epoch in range(10):
-    #     print(f"epoch {epoch}...")
+    for epoch in range(10):
+        print(f"epoch {epoch}...")
 
-    train_env, _ = create_rl_env_random()
-    train_model(
-        dqn=dqn, 
-        train_env=train_env,
-        num_steps=1000000
-    )
+        # train_env, _ = create_rl_env_random()
+        train_model(
+            dqn=dqn,
+            train_env=train_env,
+            num_steps=10000,
+        )
 
-    # Evaluating the model
-    ## recreate eval_env (sometimes breaks if the training takes too long)
-    _, eval_env = create_rl_env_random()
-    eval_model(
-        agent=dqn,
-        eval_env=eval_env,
-        opponent=create_random_player(),
-        num_eval_episodes=100,
-    )
+        # Evaluating the model
+        ## recreate eval_env (sometimes breaks if the training takes too long)
+        _, eval_env = create_rl_env_random()
+        eval_model(
+            agent=dqn,
+            eval_env=eval_env,
+            opponent=create_random_player(),
+            num_eval_episodes=100,
+        )
+
+        print("time", time.time() - start_time)

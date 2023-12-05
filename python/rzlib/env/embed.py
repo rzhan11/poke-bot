@@ -13,7 +13,7 @@ import json
 
 ## HYPERPARAMS
 _cur_gen = 8
-_static_data_folder = Path(__file__).parent / "../../../data/"
+_static_data_folder = Path(__file__).parent / "../../../data/small_ref_dicts/"
 _move_fpath = _static_data_folder / "move.json"
 _item_fpath = _static_data_folder / "item.json"
 _ability_fpath = _static_data_folder / "ability.json"
@@ -210,7 +210,7 @@ class MoveEmbed(AbstractEndEmbed):
     def __init__(self, move: Move):
         self.tags = {
             "move_name": move.id,
-            ".boosts": move.boosts,
+            # ".boosts": move.boosts,
             ".category": str(move.category),
             # ".secondary": move.secondary,
         }
@@ -407,8 +407,8 @@ class PokemonDataEmbed(AbstractEndEmbed):
             "cur_hp_fraction": self.pok.current_hp_fraction,
             # "max_hp": self.pok.max_hp, ### this might be bad to use, since our team has real values, while opp team is scaled 0 to 100
             "effects": encode_effect(self.pok.effects),
-            # "protect_counter": int(self.pok.protect_counter),
-            # "is_dyna": int(self.pok.is_dynamaxed),
+            "protect_counter": int(self.pok.protect_counter),
+            "is_dyna": int(self.pok.is_dynamaxed),
         }
 
 class MovesetEmbed(AbstractHLEmbed):
@@ -459,8 +459,8 @@ class BattleEmbed(AbstractHLEmbed):
         _cur_turn = battle.turn
 
         self.features = {
-            "active_pokemon": PokemonEmbed(battle.active_pokemon),
-            "opp_active_pokemon": PokemonEmbed(battle.opponent_active_pokemon),
+            # "active_pokemon": PokemonEmbed(battle.active_pokemon),
+            # "opp_active_pokemon": PokemonEmbed(battle.opponent_active_pokemon),
             "my_team": TeamEmbed(list(battle.team.values())),
             "opp_team": TeamEmbed(list(battle.opponent_team.values())),
         }

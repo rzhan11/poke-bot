@@ -179,33 +179,26 @@ _num_envs_per_worker = 1
 _num_workers = _num_rollout_workers + _num_eval_workers
 
 ppo_config = (
-    PPOConfig()
-    .framework("torch")
+    DQNConfig()
+    .framework("tf2")
     .training(
         model={
             "fcnet_hiddens": [128, 128],
             # "use_lstm": True,
             # "lstm_cell_size": 64,
         },
-        train_batch_size=1024,
-        sgd_minibatch_size=1024,
-        # num_sgd_iters=100,
-        gamma=0.999,
+        replay_buffer_config= {
+            "capacity": 100000,
+        },
+        gamma=0.99,
         lr=0.001,
-        use_critic=True,
-        use_gae=True,
-        shuffle_sequences=True,
-        # kl_coeff=0.3,
-        # target_network_update_freq=500,
-        # gamma=0.99,
-        # lr=0.001,
-        # grad_clip=0.1,
-        # optimizer=None,
-        # train_batch_size=None,
+        target_network_update_freq=1000,
+        train_batch_size=1000,
     )
     .rollouts(
         num_rollout_workers=_num_rollout_workers,
         num_envs_per_worker=_num_envs_per_worker,
+        rollout_fragment_length=250,
     )
     .evaluation(
         # evaluation_num_workers=_num_eval_workers,
@@ -219,7 +212,8 @@ ppo_config = (
     )
     .reporting(
         keep_per_episode_custom_metrics=True,
-        metrics_num_episodes_for_smoothing=1000,
+        metrics_num_episodes_for_smoothing=100,
+        min_sample_timesteps_per_iteration=None,
     )
     .resources(
         num_cpus_per_worker=_num_cpus / _num_workers, 
@@ -258,7 +252,7 @@ ppo_config = (
 
 _num_iters = 10000
 _checkpoint_freq = 10
-_checkpoint_base_folder_name = "../results/ppo_toy"
+_checkpoint_base_folder_name = "../results/dqn_rllib_multi"
 _checkpoint_folder = get_checkpoint_folder_version(_checkpoint_base_folder_name)
 
 # _use_checkpoint = "../results/ppo_toy_13/"

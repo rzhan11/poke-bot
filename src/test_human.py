@@ -4,8 +4,8 @@ from collections import namedtuple
 from poke_env.ps_client import AccountConfiguration
 
 
-_team1_fname = "../data/team1.txt"
-_team2_fname = "../data/team2.txt"
+_team1_fname = "../data/small_teams/team1.txt"
+_team2_fname = "../data/small_teams/team2.txt"
 
 def load_team(fname):
     # load_bot()
