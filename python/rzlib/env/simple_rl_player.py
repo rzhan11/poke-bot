@@ -155,13 +155,15 @@ class SimpleRLPlayer(Gen8EnvSinglePlayer):
 
         emb_dict = emb.embed_dict()
         emb_arr = embed.convert_embed_dict_to_ndarray(emb_dict)
+        res_arr = emb_arr
+        # print("embed_len", len(res_arr), np.min(res_arr), np.max(res_arr), np.isnan(res_arr).any())
 
         return emb_arr
 
     def describe_embedding(self) -> Space:
         return Box(
-            low=-100,
-            high=1000,
+            low=-1e6,
+            high=1e6,
             shape=(self._input_len,),
             dtype=np.float32,
         )

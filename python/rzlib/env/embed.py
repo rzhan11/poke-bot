@@ -73,7 +73,7 @@ def embed_dumps(z):
 
 
 def flatten_dict_gen(d, parent_key='', sep='_'):
-    for k, v in d.items():
+    for k, v in sorted(list(d.items())):
         new_key = f"{parent_key}{sep}{k}" if parent_key else k
         if isinstance(v, dict):
             yield from flatten_dict_gen(v, new_key, sep=sep)
@@ -227,25 +227,25 @@ class MoveEmbed(AbstractEndEmbed):
         return {
             "is_unknown": int(self.move.is_empty),
 
-            # "move_id": one_hot_move(self.move),
-            "type": one_hot_type((self.move.type,)),
-            "category": one_hot_category(self.move.category),
-            "defensive_category": one_hot_category(self.move.defensive_category),
+            "move_id": one_hot_move(self.move),
+            # "type": one_hot_type((self.move.type,)),
+            # "category": one_hot_category(self.move.category),
+            # "defensive_category": one_hot_category(self.move.defensive_category),
             "current_pp": self.move.current_pp, # note: this number is not accurate
 
-            "accuracy": self.move.accuracy,
-            "base_power": self.move.base_power,
-            "boosts": list(boosts.values()),
-            "priority": self.move.priority,
-            "damage": 0.0 if self.move.damage == "level" else self.move.damage,
-            "damage_use_level": int(self.move.damage == "level"),
+            # "accuracy": self.move.accuracy,
+            # "base_power": self.move.base_power,
+            # "boosts": list(boosts.values()),
+            # "priority": self.move.priority,
+            # "damage": 0.0 if self.move.damage == "level" else self.move.damage,
+            # "damage_use_level": int(self.move.damage == "level"),
             
-            "drain": self.move.drain,
-            "crit_ratio": self.move.crit_ratio,
-            "force_switch": int(self.move.force_switch),
-            "status": one_hot_status(self.move.status),
-            "is_volatile_status": int(self.move.volatile_status is not None),
-            "heal": self.move.heal,
+            # "drain": self.move.drain,
+            # "crit_ratio": self.move.crit_ratio,
+            # "force_switch": int(self.move.force_switch),
+            # "status": one_hot_status(self.move.status),
+            # "is_volatile_status": int(self.move.volatile_status is not None),
+            # "heal": self.move.heal,
 
             # "cure_status": self.move.
         }
@@ -348,7 +348,7 @@ class StatusEmbed(AbstractEndEmbed):
 _num_species_values = len(SPECIES_DICT)
 def one_hot_species(pok: Pokemon) -> List[int]:
     ref_dict = SPECIES_DICT
-    if pok.is_empty:
+    if isinstance(pok, UnknownPokemon):
         value = -1
     else:
         assert pok.species in ref_dict, f"Species not found: {pok.species}"
@@ -398,17 +398,17 @@ class PokemonDataEmbed(AbstractEndEmbed):
             "active": int(self.pok.active),
 
             # poke-specific info
-            # "species_id": one_hot_species(self.pok),
-            "level": int(self.pok.level),
-            "types": one_hot_type((self.pok.type_1, self.pok.type_2)),
-            "base_stats": list(self.pok.base_stats.values()),
+            "species_id": one_hot_species(self.pok),
+            # "level": int(self.pok.level),
+            # "types": one_hot_type((self.pok.type_1, self.pok.type_2)),
+            # "base_stats": list(self.pok.base_stats.values()),
             "fainted": int(self.pok.fainted),
             "boosts": list(self.pok.boosts.values()),
             "cur_hp_fraction": self.pok.current_hp_fraction,
             # "max_hp": self.pok.max_hp, ### this might be bad to use, since our team has real values, while opp team is scaled 0 to 100
             "effects": encode_effect(self.pok.effects),
-            "protect_counter": int(self.pok.protect_counter),
-            "is_dyna": int(self.pok.is_dynamaxed),
+            # "protect_counter": int(self.pok.protect_counter),
+            # "is_dyna": int(self.pok.is_dynamaxed),
         }
 
 class MovesetEmbed(AbstractHLEmbed):
@@ -461,8 +461,8 @@ class BattleEmbed(AbstractHLEmbed):
         self.features = {
             "active_pokemon": PokemonEmbed(battle.active_pokemon),
             "opp_active_pokemon": PokemonEmbed(battle.opponent_active_pokemon),
-            # "my_team": TeamEmbed(list(battle.team.values())),
-            # "opp_team": TeamEmbed(list(battle.opponent_team.values())),
+            "my_team": TeamEmbed(list(battle.team.values())),
+            "opp_team": TeamEmbed(list(battle.opponent_team.values())),
         }
         self.in_features = {}
         self.tags = {
@@ -518,6 +518,7 @@ class UnknownPokemon(Pokemon):
         self._effects = {}
         self._protect_counter = 0
         self._is_dynamaxed = False
+        self._status_counter = 0
 
         self._terastallized = False
         self._terastallized_type = None

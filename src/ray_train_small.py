@@ -33,8 +33,8 @@ from rzlib.env.simple_rl_player import (
 
 ## ray imports
 import ray
-_num_cpus = 4
-_num_gpus = 0
+_num_cpus = 64
+_num_gpus = 4
 ray.init(
     # local_mode=True,
     num_cpus=_num_cpus,
@@ -186,9 +186,10 @@ ppo_config = (
             # "use_lstm": True,
             # "lstm_cell_size": 64,
         },
-        train_batch_size=2048,
-        sgd_minibatch_size=2048,
-        gamma=0.99,
+        train_batch_size=4*1024,
+        sgd_minibatch_size=1024,
+        # num_sgd_iters=100,
+        gamma=0.999,
         lr=0.001,
         use_critic=True,
         use_gae=True,
@@ -217,7 +218,7 @@ ppo_config = (
     )
     .reporting(
         keep_per_episode_custom_metrics=True,
-        metrics_num_episodes_for_smoothing=100,
+        metrics_num_episodes_for_smoothing=1000,
     )
     .resources(
         num_cpus_per_worker=_num_cpus / _num_workers, 
@@ -228,17 +229,21 @@ ppo_config = (
             "battle_format": _battle_format,
             "start_challenging": True,
             "start_timer_on_battle_start": True,
+            # "team": None, # my team
             "team": load_team(_team2_fname), # my team
         },
         "ray_config": {
-            "opponent_fn": create_heur_bot_fn(
+            "opponent_fn": create_max_bot_fn(
                 battle_format=_battle_format, 
                 team=load_team(_team1_fname),
+                # team=None,
             ),
             "base_name": "PPO",
         },
         "custom_config": {
-            "input_len": 514,
+            # "input_len": 514,
+            # "input_len": 3598,
+            "input_len": 29880,
         },
     })
     .fault_tolerance(

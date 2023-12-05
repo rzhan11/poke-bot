@@ -10,7 +10,7 @@ sys.path.append("/Users/richardzhan/cs/15888/poke/python")
 from rzlib.env import embed
 from rzlib.env.simple_rl_player import SimpleRLPlayer
 
-ref_rl_player = SimpleRLPlayer(None, None)
+# ref_rl_player = SimpleRLPlayer(None, None)
 
 class CustomRandomPlayer(Player):
     def choose_move(self, battle):
@@ -19,7 +19,7 @@ class CustomRandomPlayer(Player):
         res_no_tag = emb.embed_dict(with_tags=False)
         res_arr = embed.convert_embed_dict_to_ndarray(res_no_tag)
         # print(embed.embed_dumps(res))
-        # print(len(res_arr))
+        print("embed_len", len(res_arr), np.min(res_arr), np.max(res_arr), np.isnan(res_arr).any())
 
         # reward = ref_rl_player.calc_reward(None, battle)
 
