@@ -33,8 +33,8 @@ from rzlib.env.simple_rl_player import (
 
 ## ray imports
 import ray
-_num_cpus = 64
-_num_gpus = 4
+_num_cpus = 4
+_num_gpus = 0
 ray.init(
     # local_mode=True,
     num_cpus=_num_cpus,
@@ -133,7 +133,8 @@ class MyCallbacks(DefaultCallbacks):
         # episode.custom_metrics["episode_id"] = episode.episode_id
 
     def on_sample_end(self, *, worker, samples, **kwargs):
-        print(f"on_sample_end, {len(samples)}")
+        # print(f"on_sample_end, {len(samples)}")
+        pass
 
     def on_train_result(self, *, algorithm, result: dict, **kwargs):
         result["custom_metrics"]["winrate"] = np.mean(result["custom_metrics"]["won_battle"])
@@ -186,7 +187,7 @@ ppo_config = (
             # "use_lstm": True,
             # "lstm_cell_size": 64,
         },
-        train_batch_size=4*1024,
+        train_batch_size=1024,
         sgd_minibatch_size=1024,
         # num_sgd_iters=100,
         gamma=0.999,
@@ -233,7 +234,7 @@ ppo_config = (
             "team": load_team(_team2_fname), # my team
         },
         "ray_config": {
-            "opponent_fn": create_max_bot_fn(
+            "opponent_fn": create_random_bot_fn(
                 battle_format=_battle_format, 
                 team=load_team(_team1_fname),
                 # team=None,
